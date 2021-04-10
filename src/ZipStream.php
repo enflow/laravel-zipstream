@@ -12,6 +12,7 @@ use STS\ZipStream\Events\ZipStreamed;
 use STS\ZipStream\Events\ZipStreaming;
 use STS\ZipStream\Models\File;
 use Psr\Http\Message\StreamInterface;
+use STS\ZipStream\Models\LocalFile;
 use STS\ZipStream\Models\TempFile;
 use ZipStream\Exception\OverflowException;
 use ZipStream\ZipStream as BaseZipStream;
@@ -286,9 +287,9 @@ class ZipStream extends BaseZipStream implements Responsable
     public function saveTo( $output ): int
     {
         if (!$output instanceof FileContract) {
-            if(!is_dir($output)) {
-                mkdir($output, 0777, true);
-            }
+//            if(!is_dir($output)) {
+//                mkdir($output, 0777, true);
+//            }
 
             $output = File::make(Str::finish($output, "/") . $this->getName());
         }
