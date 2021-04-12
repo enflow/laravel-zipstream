@@ -3,6 +3,7 @@
 namespace STS\ZipStream\Models;
 
 use Aws;
+use Aws\Result as AwsResult;
 use Aws\S3\S3Client;
 use Aws\S3\S3UriParser;
 use function GuzzleHttp\Psr7\stream_for;
@@ -17,19 +18,15 @@ class S3File extends File
     /** @var S3Client */
     protected $client;
 
+    /** @var AwsResult|null|int */
+    protected $fetchedObject;
+
     /**
      * @return int
      */
     public function calculateFilesize(): int
     {
-        try {
-            return $this->getS3Client()->headObject([
-                'Bucket' => $this->getBucket(),
-                'Key' => $this->getKey()
-            ])->get('ContentLength');
-        } catch (S3Exception $e) {
-            return 0;
-        }
+        return optional($this->object())->get('ContentLength') ?? 0;
     }
 
     /**
@@ -49,7 +46,7 @@ class S3File extends File
      */
     public function getS3Client(): S3Client
     {
-        if (!$this->client) {
+        if (! $this->client) {
             $this->client = app('zipstream.s3client');
         }
 
@@ -77,14 +74,7 @@ class S3File extends File
      */
     protected function buildReadableStream(): StreamInterface
     {
-        try {
-            return $this->getS3Client()->getObject([
-                'Bucket' => $this->getBucket(),
-                'Key' => $this->getKey()
-            ])->get('Body');
-        } catch (S3Exception $e) {
-            return stream_for(null);
-        }
+        return optional($this->object())->get('Body') ?? stream_for(null);
     }
 
     /**
@@ -95,5 +85,31 @@ class S3File extends File
         $this->getS3Client()->registerStreamWrapper();
 
         return stream_for(fopen($this->getSource(), 'w'));
+    }
+
+    /**
+     * @return AwsResult|null
+     */
+    protected function object(): ?AwsResult
+    {
+        if (! $this->fetchedObject) {
+            try {
+                return $this->fetchedObject = $this->getS3Client()->getObject([
+                    'Bucket' => $this->getBucket(),
+                    'Key' => $this->getKey()
+                ]);
+            } catch (S3Exception $e) {
+                // Set to -1 to know that we don't need to re-fetch it, as it will fail again.
+                $this->fetchedObject = -1;
+
+                return null;
+            }
+        }
+
+        if ($this->fetchedObject === -1) {
+            return null;
+        }
+
+        return $this->fetchedObject;
     }
 }
